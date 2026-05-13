@@ -10,7 +10,7 @@ export default function Dashboard() {
 
   const fetchQuizzes = async () => {
     try {
-      const res = await axios.get('http://localhost:5001/api/quizzes', {
+      const res = await axios.get('/api/quizzes', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQuizzes(res.data);
@@ -28,7 +28,7 @@ export default function Dashboard() {
 
   const togglePublish = async (id, currentStatus) => {
     try {
-      await axios.put(`http://localhost:5001/api/quizzes/${id}`, 
+      await axios.put(`/api/quizzes/${id}`, 
         { isPublished: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );

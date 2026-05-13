@@ -29,7 +29,7 @@ export default function QuizEditor() {
     if (isEditMode) {
       const fetchQuiz = async () => {
         try {
-          const res = await axios.get(`http://localhost:5001/api/quizzes/${id}`, {
+          const res = await axios.get(`/api/quizzes/${id}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const q = res.data;
@@ -85,11 +85,11 @@ export default function QuizEditor() {
     const payload = { title, description, timerMinutes, questions };
     try {
       if (isEditMode) {
-        await axios.put(`http://localhost:5001/api/quizzes/${id}`, payload, {
+        await axios.put(`/api/quizzes/${id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post(`http://localhost:5001/api/quizzes`, payload, {
+        await axios.post(`/api/quizzes`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }

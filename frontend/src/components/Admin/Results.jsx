@@ -15,8 +15,8 @@ export default function Results() {
     const fetchResults = async () => {
       try {
         const [subRes, quizRes] = await Promise.all([
-          axios.get(`http://localhost:5001/api/submissions/quiz/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`http://localhost:5001/api/quizzes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`/api/submissions/quiz/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`/api/quizzes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
         setSubmissions(subRes.data);
         setQuiz(quizRes.data);
@@ -29,7 +29,7 @@ export default function Results() {
 
   const handleScoreUpdate = async (subId, manualScore, isFullyGraded) => {
     try {
-      await axios.put(`http://localhost:5001/api/submissions/${subId}/score`, { manualScore, isFullyGraded }, {
+      await axios.put(`/api/submissions/${subId}/score`, { manualScore, isFullyGraded }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // update local state

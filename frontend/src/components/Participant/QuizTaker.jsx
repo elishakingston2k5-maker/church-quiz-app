@@ -19,7 +19,7 @@ export default function QuizTaker() {
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
-        const res = await axios.get(`http://localhost:5001/api/quizzes/published/${id}`);
+        const res = await axios.get(`/api/quizzes/published/${id}`);
         setQuiz(res.data);
       } catch (err) {
         setError('Quiz not found or not available.');
@@ -88,7 +88,7 @@ export default function QuizTaker() {
 
     setIsSubmitting(true);
     try {
-      await axios.post('http://localhost:5001/api/submissions', {
+      await axios.post('/api/submissions', {
         quizId: id,
         participantName,
         answers

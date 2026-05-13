@@ -11,7 +11,7 @@ export default function Home() {
   useEffect(() => {
     const fetchQuizzes = async () => {
       try {
-        const res = await axios.get('http://localhost:5001/api/quizzes/published');
+        const res = await axios.get('/api/quizzes/published');
         setQuizzes(res.data);
         setLoading(false);
       } catch (err) {

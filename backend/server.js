@@ -5,7 +5,10 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: '*', // Allow all origins for Vercel deployment flexibility
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
@@ -20,10 +23,17 @@ app.use('/api/submissions', submissionRoutes);
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB');
-    app.listen(process.env.PORT || 5001, () => {
-      console.log(`Server running on port ${process.env.PORT || 5001}`);
-    });
   })
   .catch(err => {
     console.error('MongoDB connection error:', err);
   });
+
+// Only start the server locally if not in Vercel
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(process.env.PORT || 5001, () => {
+    console.log(`Server running on port ${process.env.PORT || 5001}`);
+  });
+}
+
+// Export the app for Vercel Serverless
+module.exports = app;

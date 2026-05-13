@@ -16,7 +16,7 @@ export default function SiteAccess() {
     setError('');
 
     try {
-      const res = await axios.post('http://localhost:5001/api/auth/site-access', { password });
+      const res = await axios.post('/api/auth/site-access', { password });
       if (res.data.success) {
         localStorage.setItem('siteAccess', res.data.token);
         navigate('/');
