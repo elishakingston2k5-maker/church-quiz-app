@@ -26,29 +26,41 @@ A modern, responsive Church Quiz Competition website with an Admin Panel for qui
    npm run dev
    ```
 
-## Deployment to Vercel
+## Deployment Architecture
 
-This repository is structured as a monorepo containing both the frontend and backend, but they should be deployed as **two separate projects** in Vercel.
+- **Frontend**: Vercel
+- **Backend**: Render
+- **Database**: MongoDB Atlas
 
-### 1. Deploying the Backend (Vercel Serverless)
+### 1. Setup Database (MongoDB Atlas)
+1. Create a free cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+2. Get your connection string (URI).
+3. Ensure you allow network access from anywhere (`0.0.0.0/0`) or configure specific IP access.
+
+### 2. Deploying the Backend (Render)
 1. Push this repository to GitHub.
-2. Go to your [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New -> Project**.
-3. Import this GitHub repository.
-4. **Important**: In the configuration screen, change the **Root Directory** to `backend`.
+2. Go to your [Render Dashboard](https://dashboard.render.com/) and click **New -> Web Service**.
+3. Connect your GitHub repository.
+4. In the configuration:
+   - **Name**: `church-quiz-backend`
+   - **Root Directory**: `backend`
+   - **Environment**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
 5. Open the **Environment Variables** section and add:
    - `MONGODB_URI` (Your MongoDB Atlas connection string)
    - `JWT_SECRET` (A strong random string for admin auth)
    - `SITE_PASSWORD` (e.g. `churchquiz2026`)
-6. Click **Deploy**. Vercel will use the `vercel.json` file to deploy your Express app as a Serverless function.
-7. Note down the deployed URL (e.g., `https://church-quiz-backend.vercel.app`).
+6. Click **Create Web Service**. 
+7. Note down the deployed Render URL (e.g., `https://church-quiz-backend.onrender.com`).
 
-### 2. Deploying the Frontend (Vite)
-1. Go back to your [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New -> Project** again.
+### 3. Deploying the Frontend (Vercel)
+1. Go to your [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New -> Project**.
 2. Import the exact same GitHub repository.
-3. This time, change the **Root Directory** to `frontend`.
+3. Change the **Root Directory** to `frontend`.
 4. Ensure the Framework Preset is set to **Vite**.
 5. Open the **Environment Variables** section and add:
-   - `VITE_API_URL` -> Set this to the backend URL you generated in step 1 (e.g., `https://church-quiz-backend.vercel.app`).
+   - `VITE_API_URL` -> Set this to the backend URL you generated in step 2 (e.g., `https://church-quiz-backend.onrender.com`).
 6. Click **Deploy**.
 
 Your application is now fully live!
