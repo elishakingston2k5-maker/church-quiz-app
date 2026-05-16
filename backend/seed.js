@@ -9,7 +9,7 @@ mongoose.connect(process.env.MONGODB_URI)
 .then(async () => {
   console.log('Connected to MongoDB');
 
-  await Admin.deleteMany({ username: 'admin' });
+  await Admin.deleteMany({});
 
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
@@ -25,5 +25,5 @@ mongoose.connect(process.env.MONGODB_URI)
   process.exit();
 })
 .catch(err => {
-  console.log(err);
+  console.log('MongoDB error:', err);
 });
