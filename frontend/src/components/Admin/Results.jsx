@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle, Clock, BarChart2 } from 'lucide-react';
+import ReadOnlyMatching from '../Participant/ReadOnlyMatching';
 
 export default function Results() {
   const { id } = useParams();
@@ -42,6 +43,35 @@ export default function Results() {
     }
   };
 
+const getQuestionScore = (q, pAns) => {
+  if (!pAns) return 0;
+  
+  if (q.type === 'MATCHING') {
+    let score = 0;
+    if (q.correctAnswer && typeof q.correctAnswer === 'object') {
+      q.options.forEach(leftItem => {
+        if (pAns[leftItem] && pAns[leftItem] === q.correctAnswer[leftItem]) {
+          score += 1;
+        }
+      });
+    }
+    return score;
+  }
+  
+  if (q.type === 'FILL_BLANKS') {
+    const expected = typeof q.correctAnswer === 'string' ? q.correctAnswer : '';
+    const allowed = expected.split(/[,/|]+/).map(a => a.trim().toLowerCase()).filter(Boolean);
+    const participantAns = typeof pAns === 'string' ? pAns.trim().toLowerCase() : '';
+    return (allowed.length > 0 && allowed.includes(participantAns)) ? q.points : 0;
+  }
+  
+  if (['MCQ', 'CHECKBOX'].includes(q.type)) {
+    return JSON.stringify(pAns) === JSON.stringify(q.correctAnswer) ? q.points : 0;
+  }
+  
+  return 0;
+};
+
   const downloadAnswerSheet = () => {
     if (!selectedSub || !quiz) return;
 
@@ -51,54 +81,96 @@ export default function Results() {
       return;
     }
 
-    const getQuestionScore = (q, pAns) => {
-      if (!pAns) return 0;
-      
-      if (q.type === 'MATCHING') {
-        let score = 0;
-        if (q.correctAnswer && typeof q.correctAnswer === 'object') {
-          q.options.forEach(leftItem => {
-            if (pAns[leftItem] && pAns[leftItem] === q.correctAnswer[leftItem]) {
-              score += 1;
-            }
-          });
-        }
-        return score;
-      }
-      
-      if (q.type === 'FILL_BLANKS') {
-        const expected = typeof q.correctAnswer === 'string' ? q.correctAnswer : '';
-        const allowed = expected.split(/[,/|]+/).map(a => a.trim().toLowerCase()).filter(Boolean);
-        const participantAns = typeof pAns === 'string' ? pAns.trim().toLowerCase() : '';
-        return (allowed.length > 0 && allowed.includes(participantAns)) ? q.points : 0;
-      }
-      
-      if (['MCQ', 'CHECKBOX'].includes(q.type)) {
-        return JSON.stringify(pAns) === JSON.stringify(q.correctAnswer) ? q.points : 0;
-      }
-      
-      return 0;
-    };
-
     const questionsHtml = quiz.questions.map((q, idx) => {
       const pAns = selectedSub.answers[q.id];
       const maxPts = q.type === 'MATCHING' ? q.options.length : q.points;
       const isAuto = ['MCQ', 'CHECKBOX', 'FILL_BLANKS', 'MATCHING'].includes(q.type);
-      const score = isAuto ? getQuestionScore(q, pAns) : 'Manual';
+      const score = isAuto ? getQuestionScore(q, pAns) : 0;
+
+      let checkBadge = '';
+      if (isAuto) {
+        if (score === maxPts) {
+          checkBadge = '<span class="status-icon icon-correct">✅</span>';
+        } else if (score === 0) {
+          checkBadge = '<span class="status-icon icon-incorrect">❌</span>';
+        } else {
+          checkBadge = `<span class="status-icon icon-warning">⚠️ ${score}/${maxPts}</span>`;
+        }
+      } else {
+        if (selectedSub.isFullyGraded) {
+          checkBadge = selectedSub.manualScore > 0 ? '<span class="status-icon icon-correct">✅</span>' : '<span class="status-icon icon-incorrect">❌</span>';
+        } else {
+          checkBadge = '<span class="status-icon icon-review">⏳ Review</span>';
+        }
+      }
+
+      if (q.type === 'MATCHING') {
+        const sortedRight = [...q.matchingRight].sort();
+        
+        return `
+          <div class="question-card">
+            <div class="question-header">
+              <h3>Question ${idx + 1}: ${q.text} ${checkBadge}</h3>
+              <span class="score-badge">${score} / ${maxPts} pts</span>
+            </div>
+            
+            <div class="matching-container" id="matching-${q.id}" data-options='${JSON.stringify(q.options)}' data-sorted-right='${JSON.stringify(sortedRight)}' data-correct-answer='${JSON.stringify(q.correctAnswer || {})}' data-p-ans='${JSON.stringify(pAns || {})}'>
+              <!-- Left side -->
+              <div class="matching-column">
+                ${q.options.map((leftText, leftIdx) => {
+                  const userMatch = pAns?.[leftText];
+                  const correctMatch = q.correctAnswer?.[leftText];
+                  const isCorrect = userMatch === correctMatch;
+                  
+                  const statusClass = userMatch ? (isCorrect ? 'card-correct' : 'card-incorrect') : '';
+                  const dotClass = userMatch ? (isCorrect ? 'dot-correct' : 'dot-incorrect') : '';
+                  const symbol = userMatch ? (isCorrect ? '✓' : '✗') : '';
+                  
+                  return `
+                    <div class="matching-card ${statusClass}">
+                      <span class="matching-text">${leftText}</span>
+                      <div class="matching-dot left-dot ${dotClass}" data-dot-left="${leftIdx}">${symbol}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- SVG Overlay -->
+              <svg class="matching-svg" id="svg-${q.id}"></svg>
+
+              <!-- Right side -->
+              <div class="matching-column">
+                ${sortedRight.map((rightText, rightIdx) => {
+                  const matchedLeftKey = Object.keys(pAns || {}).find(k => pAns[k] === rightText);
+                  const hasMatch = matchedLeftKey !== undefined;
+                  const isCorrect = hasMatch && q.correctAnswer?.[matchedLeftKey] === rightText;
+                  
+                  const statusClass = hasMatch ? (isCorrect ? 'card-correct' : 'card-incorrect') : '';
+                  const dotClass = hasMatch ? (isCorrect ? 'dot-correct' : 'dot-incorrect') : '';
+                  const symbol = hasMatch ? (isCorrect ? '✓' : '✗') : '';
+                  
+                  return `
+                    <div class="matching-card ${statusClass}">
+                      <div class="matching-dot right-dot ${dotClass}" data-dot-right="${rightIdx}">${symbol}</div>
+                      <span class="matching-text">${rightText}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
 
       let pAnswerStr = '';
-      if (q.type === 'MATCHING' && pAns) {
-        pAnswerStr = Object.entries(pAns).map(([l, r]) => `<div class="match-item"><b>${l}</b> ➡️ ${r}</div>`).join('');
-      } else if (q.type === 'CHECKBOX' && Array.isArray(pAns)) {
+      if (q.type === 'CHECKBOX' && Array.isArray(pAns)) {
         pAnswerStr = pAns.join(', ');
       } else {
         pAnswerStr = pAns || '<span class="no-answer">No answer provided</span>';
       }
 
       let expectedStr = '';
-      if (q.type === 'MATCHING' && q.correctAnswer) {
-        expectedStr = Object.entries(q.correctAnswer).map(([l, r]) => `<div class="match-item"><b>${l}</b> ➡️ ${r}</div>`).join('');
-      } else if (q.type === 'CHECKBOX' && Array.isArray(q.correctAnswer)) {
+      if (q.type === 'CHECKBOX' && Array.isArray(q.correctAnswer)) {
         expectedStr = q.correctAnswer.join(', ');
       } else {
         expectedStr = q.correctAnswer || 'Not specified';
@@ -107,11 +179,11 @@ export default function Results() {
       return `
         <div class="question-card">
           <div class="question-header">
-            <h3>Question ${idx + 1}: ${q.text}</h3>
-            <span class="score-badge">${score} / ${maxPts} pts</span>
+            <h3>Question ${idx + 1}: ${q.text} ${checkBadge}</h3>
+            <span class="score-badge">${isAuto ? score : (selectedSub.isFullyGraded ? selectedSub.manualScore : 'Manual')} / ${maxPts} pts</span>
           </div>
           <div class="answer-section">
-            <div class="answer-block user-answer">
+            <div class="answer-block user-answer ${isAuto ? (score === maxPts ? 'block-correct' : 'block-incorrect') : ''}">
               <span class="block-title">Participant's Answer:</span>
               <div class="answer-content">${pAnswerStr}</div>
             </div>
@@ -196,6 +268,32 @@ export default function Results() {
             font-weight: 600;
             padding-right: 15px;
           }
+          .status-icon {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 16px;
+            vertical-align: middle;
+          }
+          .icon-correct { color: #10b981; }
+          .icon-incorrect { color: #ef4444; }
+          .icon-warning {
+            font-size: 11px;
+            background-color: #fef3c7;
+            color: #d97706;
+            border: 1px solid #fde68a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+          }
+          .icon-review {
+            font-size: 11px;
+            background-color: #ffedd5;
+            color: #ea580c;
+            border: 1px solid #fed7aa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+          }
           .score-badge {
             background-color: #f3f4f6;
             color: #374151;
@@ -227,6 +325,14 @@ export default function Results() {
             background-color: #f0fdf4;
             border: 1px solid #dcfce7;
           }
+          .block-correct {
+            border-color: #a7f3d0 !important;
+            background-color: #f0fdf4 !important;
+          }
+          .block-incorrect {
+            border-color: #fca5a5 !important;
+            background-color: #fef2f2 !important;
+          }
           .block-title {
             display: block;
             font-size: 11px;
@@ -246,9 +352,76 @@ export default function Results() {
             color: #1f2937;
             white-space: pre-wrap;
           }
-          .match-item {
-            margin-bottom: 4px;
-            font-size: 13px;
+          .matching-container {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 120px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+          }
+          .matching-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 20;
+          }
+          .matching-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 14px;
+          }
+          .card-correct {
+            border-color: #a7f3d0;
+            background-color: #f0fdf4;
+          }
+          .card-incorrect {
+            border-color: #fca5a5;
+            background-color: #fef2f2;
+          }
+          .matching-text {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+          }
+          .matching-dot {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #d1d5db;
+            background-color: #f9fafb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+          }
+          .dot-correct {
+            border-color: #10b981;
+            background-color: #d1fae5;
+            color: #065f46;
+          }
+          .dot-incorrect {
+            border-color: #ef4444;
+            background-color: #fee2e2;
+            color: #991b1b;
+          }
+          .matching-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            overflow: visible;
           }
           .no-answer {
             color: #9ca3af;
@@ -284,10 +457,79 @@ export default function Results() {
         
         <script>
           window.onload = function() {
+            // Render matching curves
+            const matchContainers = document.querySelectorAll('.matching-container');
+            matchContainers.forEach(container => {
+              const svg = container.querySelector('.matching-svg');
+              if (!svg) return;
+
+              const containerRect = container.getBoundingClientRect();
+              const options = JSON.parse(container.getAttribute('data-options'));
+              const sortedRight = JSON.parse(container.getAttribute('data-sorted-right'));
+              const correctAnswer = JSON.parse(container.getAttribute('data-correct-answer'));
+              const pAns = JSON.parse(container.getAttribute('data-p-ans'));
+
+              options.forEach((leftText, leftIdx) => {
+                const pAnswer = pAns[leftText];
+                const correctVal = correctAnswer[leftText];
+                const leftDot = container.querySelector('[data-dot-left="' + leftIdx + '"]');
+
+                if (pAnswer) {
+                  const actualRightIdx = sortedRight.indexOf(pAnswer);
+                  const rightDot = container.querySelector('[data-dot-right="' + actualRightIdx + '"]');
+                  if (leftDot && rightDot) {
+                    const leftRect = leftDot.getBoundingClientRect();
+                    const rightRect = rightDot.getBoundingClientRect();
+
+                    const x1 = leftRect.left - containerRect.left + leftRect.width / 2;
+                    const y1 = leftRect.top - containerRect.top + leftRect.height / 2;
+                    const x2 = rightRect.left - containerRect.left + rightRect.width / 2;
+                    const y2 = rightRect.top - containerRect.top + rightRect.height / 2;
+
+                    const isCorrect = pAnswer === correctVal;
+                    const color = isCorrect ? '#10b981' : '#ef4444';
+
+                    const dx = Math.abs(x2 - x1) * 0.5;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + dx) + ' ' + y1 + ', ' + (x2 - dx) + ' ' + y2 + ', ' + x2 + ' ' + y2);
+                    path.setAttribute('stroke', color);
+                    path.setAttribute('stroke-width', '3');
+                    path.setAttribute('fill', 'none');
+                    svg.appendChild(path);
+                  }
+                }
+
+                const wasCorrect = pAnswer === correctVal;
+                if (!wasCorrect && correctVal) {
+                  const correctRightIdx = sortedRight.indexOf(correctVal);
+                  const correctDot = container.querySelector('[data-dot-right="' + correctRightIdx + '"]');
+                  if (leftDot && correctDot) {
+                    const leftRect = leftDot.getBoundingClientRect();
+                    const correctRect = correctDot.getBoundingClientRect();
+
+                    const x1 = leftRect.left - containerRect.left + leftRect.width / 2;
+                    const y1 = leftRect.top - containerRect.top + leftRect.height / 2;
+                    const x2 = correctRect.left - containerRect.left + correctRect.width / 2;
+                    const y2 = correctRect.top - containerRect.top + correctRect.height / 2;
+
+                    const dx = Math.abs(x2 - x1) * 0.5;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + dx) + ' ' + y1 + ', ' + (x2 - dx) + ' ' + y2 + ', ' + x2 + ' ' + y2);
+                    path.setAttribute('stroke', '#10b981');
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('stroke-dasharray', '4 4');
+                    path.setAttribute('stroke-opacity', '0.6');
+                    path.setAttribute('fill', 'none');
+                    svg.appendChild(path);
+                  }
+                }
+              });
+            });
+
             setTimeout(function() {
               window.print();
-            }, 300);
-          }
+            }, 400);
+          };
         </script>
       </body>
       </html>
@@ -367,53 +609,68 @@ export default function Results() {
                 {quiz.questions.map((q, i) => {
                   const pAnswer = selectedSub.answers[q.id];
                   const isAutoGraded = ['MCQ', 'CHECKBOX', 'FILL_BLANKS', 'MATCHING'].includes(q.type);
+                  const score = isAutoGraded ? getQuestionScore(q, pAnswer) : 0;
+                  const maxPts = q.type === 'MATCHING' ? q.options.length : q.points;
                   
                   return (
                     <div key={q.id} className="border border-gray-200 rounded-lg p-5">
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-medium text-gray-800"><span className="text-gray-400 mr-2">{i + 1}.</span>{q.text}</h3>
+                        <div className="flex items-center gap-2.5">
+                          <h3 className="font-semibold text-gray-800"><span className="text-gray-400 mr-2">{i + 1}.</span>{q.text}</h3>
+                          
+                          {/* Grade ticks and crosses */}
+                          {isAutoGraded && (
+                            score === maxPts ? (
+                              <span className="text-green-500 font-bold" title="Correct">✅</span>
+                            ) : score === 0 ? (
+                              <span className="text-red-500 font-bold" title="Incorrect">❌</span>
+                            ) : (
+                              <span className="text-yellow-600 font-bold bg-yellow-50 border border-yellow-250 px-2 py-0.5 rounded text-xs" title="Partially Correct">
+                                ⚠️ {score}/{maxPts}
+                              </span>
+                            )
+                          )}
+                        </div>
                         <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
-                          {q.type === 'MATCHING' ? `${q.options.length} pts` : `${q.points} pts`}
+                          {maxPts} pts
                         </span>
                       </div>
                       
-                      <div className="bg-blue-50 p-4 rounded mb-4">
-                        <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1 block">Participant's Answer</span>
-                        {q.type === 'MATCHING' && pAnswer ? (
-                          <div className="grid grid-cols-2 gap-2 mt-2">
-                            {Object.entries(pAnswer).map(([l, r], idx) => (
-                              <div key={idx} className="bg-white px-3 py-2 rounded shadow-sm text-sm border border-blue-100">
-                                <span className="font-medium">{l}</span> ➡️ {r}
-                              </div>
-                            ))}
+                      {q.type === 'MATCHING' ? (
+                        <div className="mt-3">
+                          <ReadOnlyMatching question={q} value={pAnswer || {}} />
+                        </div>
+                      ) : (
+                        <>
+                          <div className={`p-4 rounded mb-4 border ${
+                            isAutoGraded 
+                              ? score === maxPts 
+                                ? 'bg-green-50/20 border-green-200' 
+                                : 'bg-red-50/20 border-red-200'
+                              : 'bg-blue-50 border-blue-100'
+                          }`}>
+                            <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1 block">Participant's Answer</span>
+                            {q.type === 'CHECKBOX' && Array.isArray(pAnswer) ? (
+                              <ul className="list-disc list-inside text-gray-700 text-sm mt-1">
+                                {pAnswer.map((a, idx) => <li key={idx}>{a}</li>)}
+                              </ul>
+                            ) : (
+                              <div className="text-gray-800 whitespace-pre-wrap font-medium">{pAnswer || <span className="text-gray-400 italic">No answer provided</span>}</div>
+                            )}
                           </div>
-                        ) : q.type === 'CHECKBOX' && Array.isArray(pAnswer) ? (
-                          <ul className="list-disc list-inside text-gray-700 text-sm mt-1">
-                            {pAnswer.map((a, idx) => <li key={idx}>{a}</li>)}
-                          </ul>
-                        ) : (
-                          <div className="text-gray-800 whitespace-pre-wrap">{pAnswer || <span className="text-gray-400 italic">No answer provided</span>}</div>
-                        )}
-                      </div>
 
-                      <div className="bg-green-50 p-4 rounded">
-                        <span className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1 block">Expected Answer</span>
-                        {q.type === 'MATCHING' && q.correctAnswer ? (
-                          <div className="grid grid-cols-2 gap-2 mt-2">
-                            {Object.entries(q.correctAnswer).map(([l, r], idx) => (
-                              <div key={idx} className="bg-white px-3 py-2 rounded shadow-sm text-sm border border-green-100">
-                                <span className="font-medium">{l}</span> ➡️ {r}
-                              </div>
-                            ))}
+                          <div className="bg-green-50 p-4 rounded border border-green-200">
+                            <span className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1 block">Expected Answer</span>
+                            {q.type === 'CHECKBOX' && Array.isArray(q.correctAnswer) ? (
+                              <ul className="list-disc list-inside text-gray-700 text-sm mt-1">
+                                {q.correctAnswer.map((a, idx) => <li key={idx}>{a}</li>)}
+                              </ul>
+                            ) : (
+                              <div className="text-gray-800 font-medium">{q.correctAnswer || <span className="text-gray-400 italic">Not specified</span>}</div>
+                            )}
                           </div>
-                        ) : q.type === 'CHECKBOX' && Array.isArray(q.correctAnswer) ? (
-                          <ul className="list-disc list-inside text-gray-700 text-sm mt-1">
-                            {q.correctAnswer.map((a, idx) => <li key={idx}>{a}</li>)}
-                          </ul>
-                        ) : (
-                          <div className="text-gray-800">{q.correctAnswer || <span className="text-gray-400 italic">Not specified</span>}</div>
-                        )}
-                      </div>
+                        </>
+                      )}
 
                       {!isAutoGraded && (
                         <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
@@ -424,10 +681,7 @@ export default function Results() {
                               type="number"
                               min="0"
                               max={q.points}
-                              value={selectedSub.manualScore || 0} // In a real app, track manual score per question. For simplicity, we just add to total.
-                              onChange={(e) => {
-                                // This is simplified. Proper implementation needs per-question manual scoring.
-                              }}
+                              value={selectedSub.manualScore || 0}
                               className="w-16 px-2 py-1 border border-gray-300 rounded"
                               disabled
                               title="Simplified: Use the total manual score input below"
@@ -440,14 +694,14 @@ export default function Results() {
                 })}
               </div>
               
-              <div className="p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0 flex justify-between items-center">
+              <div className="p-6 border-t border-gray-250 bg-gray-50 sticky bottom-0 flex justify-between items-center">
                 <div>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
                       type="checkbox" 
                       checked={selectedSub.isFullyGraded}
                       onChange={(e) => handleScoreUpdate(selectedSub._id, selectedSub.manualScore, e.target.checked)}
-                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                      className="w-4 h-4 text-primary-650 rounded border-gray-300 focus:ring-primary-500"
                     />
                     <span className="text-sm font-medium text-gray-700">Mark as fully graded</span>
                   </label>
