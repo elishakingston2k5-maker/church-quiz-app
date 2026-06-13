@@ -82,7 +82,14 @@ export default function QuizEditor() {
 
   const saveQuiz = async () => {
     setIsSaving(true);
-    const payload = { title, description, timerMinutes, questions };
+    // Ensure MATCHING questions have points set to the number of options (pairs)
+    const sanitizedQuestions = questions.map(q => {
+      if (q.type === 'MATCHING') {
+        return { ...q, points: q.options.length };
+      }
+      return q;
+    });
+    const payload = { title, description, timerMinutes, questions: sanitizedQuestions };
     try {
       if (isEditMode) {
         await axios.put(`/api/quizzes/${id}`, payload, {
@@ -187,7 +194,25 @@ export default function QuizEditor() {
   };
 
   const renderCorrectAnswerInput = (q, qIndex) => {
-    if (['SHORT_ANSWER', 'PARAGRAPH', 'FILL_BLANKS'].includes(q.type)) {
+    if (q.type === 'FILL_BLANKS') {
+      return (
+        <div className="mt-4">
+          <label className="text-sm font-medium text-green-700 block mb-1">Correct Answer(s)</label>
+          <input 
+            type="text"
+            value={typeof q.correctAnswer === 'string' ? q.correctAnswer : ''}
+            onChange={(e) => updateQuestion(qIndex, 'correctAnswer', e.target.value)}
+            className="w-full px-3 py-2 border border-green-200 bg-green-50 rounded"
+            placeholder="Expected answer..."
+          />
+          <p className="text-xs text-green-600 mt-1">
+            * For multiple correct answers, separate them with commas or slashes (e.g. <code>Jesus, Christ / Yeshua</code>). Matching is case-insensitive.
+          </p>
+        </div>
+      );
+    }
+
+    if (['SHORT_ANSWER', 'PARAGRAPH'].includes(q.type)) {
        return (
          <div className="mt-4">
            <label className="text-sm font-medium text-green-700 block mb-1">Correct Answer (Optional for manual grading)</label>
@@ -352,13 +377,19 @@ export default function QuizEditor() {
                 <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-gray-500">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Points:</span>
-                    <input 
-                      type="number" 
-                      min="0"
-                      value={q.points}
-                      onChange={(e) => updateQuestion(index, 'points', Number(e.target.value))}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded outline-none focus:border-primary-500 text-center"
-                    />
+                    {q.type === 'MATCHING' ? (
+                      <span className="text-sm text-gray-700 bg-gray-50 px-2.5 py-1 rounded border border-gray-200 font-medium">
+                        {q.options.length} (1 pt per pair)
+                      </span>
+                    ) : (
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={q.points}
+                        onChange={(e) => updateQuestion(index, 'points', Number(e.target.value))}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded outline-none focus:border-primary-500 text-center"
+                      />
+                    )}
                   </div>
                   <button 
                     onClick={() => removeQuestion(index)}

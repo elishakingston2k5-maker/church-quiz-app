@@ -44,7 +44,7 @@ export default function Results() {
 
   if (!quiz) return <div className="p-8 text-center text-gray-500">Loading...</div>;
 
-  const totalPossiblePoints = quiz.questions.reduce((acc, q) => acc + q.points, 0);
+  const totalPossiblePoints = quiz.questions.reduce((acc, q) => acc + (q.type === 'MATCHING' ? q.options.length : q.points), 0);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -109,7 +109,9 @@ export default function Results() {
                     <div key={q.id} className="border border-gray-200 rounded-lg p-5">
                       <div className="flex justify-between items-start mb-4">
                         <h3 className="font-medium text-gray-800"><span className="text-gray-400 mr-2">{i + 1}.</span>{q.text}</h3>
-                        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">{q.points} pts</span>
+                        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
+                          {q.type === 'MATCHING' ? `${q.options.length} pts` : `${q.points} pts`}
+                        </span>
                       </div>
                       
                       <div className="bg-blue-50 p-4 rounded mb-4">

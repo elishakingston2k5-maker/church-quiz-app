@@ -28,9 +28,25 @@ router.post('/', async (req, res) => {
       const participantAnswer = answers[q.id];
       if (!participantAnswer) return;
 
-      if (['MCQ', 'CHECKBOX', 'FILL_BLANKS', 'MATCHING'].includes(q.type)) {
-        // Compare answers depending on type
-        // This is a basic comparison. Deep equal needed for arrays/objects
+      if (q.type === 'MATCHING') {
+        let matchingScore = 0;
+        if (q.correctAnswer && typeof q.correctAnswer === 'object') {
+          q.options.forEach(leftItem => {
+            if (participantAnswer[leftItem] && participantAnswer[leftItem] === q.correctAnswer[leftItem]) {
+              matchingScore += 1;
+            }
+          });
+        }
+        autoScore += matchingScore;
+      } else if (q.type === 'FILL_BLANKS') {
+        const expected = typeof q.correctAnswer === 'string' ? q.correctAnswer : '';
+        const allowedAnswers = expected.split(/[,/|]+/).map(a => a.trim().toLowerCase()).filter(Boolean);
+        const participantAns = typeof participantAnswer === 'string' ? participantAnswer.trim().toLowerCase() : '';
+        
+        if (allowedAnswers.length > 0 && allowedAnswers.includes(participantAns)) {
+          autoScore += q.points;
+        }
+      } else if (['MCQ', 'CHECKBOX'].includes(q.type)) {
         if (JSON.stringify(participantAnswer) === JSON.stringify(q.correctAnswer)) {
           autoScore += q.points;
         }

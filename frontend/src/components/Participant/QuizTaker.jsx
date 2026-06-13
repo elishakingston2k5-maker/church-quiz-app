@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import InteractiveMatching from './InteractiveMatching';
 
 export default function QuizTaker() {
   const { id } = useParams();
@@ -262,28 +263,12 @@ export default function QuizTaker() {
     }
 
     if (q.type === 'MATCHING') {
-      const currentPairs = pAnswer || {};
       return (
-        <div className="mt-4 space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-          {q.options.map((leftItem, i) => (
-            <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="sm:w-1/2 bg-white px-4 py-3 rounded-lg border border-gray-300 shadow-sm text-gray-700 font-medium">
-                {leftItem}
-              </div>
-              <div className="hidden sm:block text-gray-400">➡️</div>
-              <select 
-                className="sm:w-1/2 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-white"
-                value={currentPairs[leftItem] || ''}
-                onChange={(e) => {
-                  handleAnswerChange(q.id, { ...currentPairs, [leftItem]: e.target.value });
-                }}
-              >
-                <option value="">Select match...</option>
-                {q.matchingRight.map((r, ri) => <option key={ri} value={r}>{r}</option>)}
-              </select>
-            </div>
-          ))}
-        </div>
+        <InteractiveMatching 
+          question={q}
+          value={pAnswer || {}}
+          onChange={(newVal) => handleAnswerChange(q.id, newVal)}
+        />
       );
     }
 
@@ -322,7 +307,9 @@ export default function QuizTaker() {
                 <h3 className="font-semibold text-lg text-gray-800">
                   <span className="text-gray-400 mr-2">{index + 1}.</span> {q.text}
                 </h3>
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded whitespace-nowrap">{q.points} pts</span>
+                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded whitespace-nowrap">
+                  {q.type === 'MATCHING' ? `${q.options.length} pts` : `${q.points} pts`}
+                </span>
               </div>
               
               {renderQuestionInput(q, index)}
