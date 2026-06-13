@@ -271,6 +271,7 @@ export default function QuizTaker() {
     if (q.type === 'MATCHING') {
       return (
         <InteractiveMatching 
+          key={q.id}
           question={q}
           value={pAnswer || {}}
           onChange={(newVal) => handleAnswerChange(q.id, newVal)}

@@ -11,12 +11,18 @@ const COLORS = [
   '#6366f1', // Indigo
 ];
 
-// Helper to shuffle array
+// Helper to shuffle array and guarantee it is not identical to the original order (if length > 1)
 const shuffleArray = (arr) => {
+  if (!arr || arr.length <= 1) return [...(arr || [])];
   const newArr = [...arr];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  let attempts = 0;
+  // Keep shuffling until the order is different from the original
+  while (newArr.join(',') === arr.join(',') && attempts < 20) {
+    for (let i = newArr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    attempts++;
   }
   return newArr;
 };
@@ -24,8 +30,13 @@ const shuffleArray = (arr) => {
 export default function InteractiveMatching({ question, value = {}, onChange }) {
   const containerRef = useRef(null);
   
-  // Shuffled right options (stabilized on mount)
-  const [shuffledRight] = useState(() => shuffleArray(question.matchingRight));
+  // Shuffled right options (stabilized on mount, resets if question changes)
+  const [shuffledRight, setShuffledRight] = useState(() => shuffleArray(question.matchingRight));
+
+  // Reset shuffled array if the question id changes
+  useEffect(() => {
+    setShuffledRight(shuffleArray(question.matchingRight));
+  }, [question.id, question.matchingRight]);
   
   // Selection states for click-to-connect
   const [activeLeft, setActiveLeft] = useState(null); // left item index
