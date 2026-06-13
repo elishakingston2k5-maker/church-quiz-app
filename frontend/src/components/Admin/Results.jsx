@@ -42,6 +42,261 @@ export default function Results() {
     }
   };
 
+  const downloadAnswerSheet = () => {
+    if (!selectedSub || !quiz) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups to download/print the answer sheet.");
+      return;
+    }
+
+    const getQuestionScore = (q, pAns) => {
+      if (!pAns) return 0;
+      
+      if (q.type === 'MATCHING') {
+        let score = 0;
+        if (q.correctAnswer && typeof q.correctAnswer === 'object') {
+          q.options.forEach(leftItem => {
+            if (pAns[leftItem] && pAns[leftItem] === q.correctAnswer[leftItem]) {
+              score += 1;
+            }
+          });
+        }
+        return score;
+      }
+      
+      if (q.type === 'FILL_BLANKS') {
+        const expected = typeof q.correctAnswer === 'string' ? q.correctAnswer : '';
+        const allowed = expected.split(/[,/|]+/).map(a => a.trim().toLowerCase()).filter(Boolean);
+        const participantAns = typeof pAns === 'string' ? pAns.trim().toLowerCase() : '';
+        return (allowed.length > 0 && allowed.includes(participantAns)) ? q.points : 0;
+      }
+      
+      if (['MCQ', 'CHECKBOX'].includes(q.type)) {
+        return JSON.stringify(pAns) === JSON.stringify(q.correctAnswer) ? q.points : 0;
+      }
+      
+      return 0;
+    };
+
+    const questionsHtml = quiz.questions.map((q, idx) => {
+      const pAns = selectedSub.answers[q.id];
+      const maxPts = q.type === 'MATCHING' ? q.options.length : q.points;
+      const isAuto = ['MCQ', 'CHECKBOX', 'FILL_BLANKS', 'MATCHING'].includes(q.type);
+      const score = isAuto ? getQuestionScore(q, pAns) : 'Manual';
+
+      let pAnswerStr = '';
+      if (q.type === 'MATCHING' && pAns) {
+        pAnswerStr = Object.entries(pAns).map(([l, r]) => `<div class="match-item"><b>${l}</b> ➡️ ${r}</div>`).join('');
+      } else if (q.type === 'CHECKBOX' && Array.isArray(pAns)) {
+        pAnswerStr = pAns.join(', ');
+      } else {
+        pAnswerStr = pAns || '<span class="no-answer">No answer provided</span>';
+      }
+
+      let expectedStr = '';
+      if (q.type === 'MATCHING' && q.correctAnswer) {
+        expectedStr = Object.entries(q.correctAnswer).map(([l, r]) => `<div class="match-item"><b>${l}</b> ➡️ ${r}</div>`).join('');
+      } else if (q.type === 'CHECKBOX' && Array.isArray(q.correctAnswer)) {
+        expectedStr = q.correctAnswer.join(', ');
+      } else {
+        expectedStr = q.correctAnswer || 'Not specified';
+      }
+
+      return `
+        <div class="question-card">
+          <div class="question-header">
+            <h3>Question ${idx + 1}: ${q.text}</h3>
+            <span class="score-badge">${score} / ${maxPts} pts</span>
+          </div>
+          <div class="answer-section">
+            <div class="answer-block user-answer">
+              <span class="block-title">Participant's Answer:</span>
+              <div class="answer-content">${pAnswerStr}</div>
+            </div>
+            <div class="answer-block correct-answer">
+              <span class="block-title">Expected Correct Answer:</span>
+              <div class="answer-content">${expectedStr}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const documentHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Answer Sheet - ${selectedSub.participantName}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #333;
+            line-height: 1.5;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .header {
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            margin: 0 0 10px 0;
+            color: #1e3a8a;
+            font-size: 28px;
+          }
+          .header p {
+            margin: 4px 0;
+            color: #555;
+            font-size: 14px;
+          }
+          .score-summary {
+            background-color: #f0f6ff;
+            border: 1px solid #dbeafe;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .score-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1e40af;
+          }
+          .score-value {
+            font-size: 32px;
+            font-weight: 900;
+            color: #2563eb;
+          }
+          .question-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+            background-color: #fff;
+          }
+          .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+          }
+          .question-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #1f2937;
+            font-weight: 600;
+            padding-right: 15px;
+          }
+          .score-badge {
+            background-color: #f3f4f6;
+            color: #374151;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+          }
+          .answer-section {
+            display: grid;
+            grid-template-cols: 1fr;
+            gap: 15px;
+          }
+          @media (min-width: 600px) {
+            .answer-section {
+              grid-template-cols: 1fr 1fr;
+            }
+          }
+          .answer-block {
+            padding: 12px 16px;
+            border-radius: 8px;
+          }
+          .user-answer {
+            background-color: #eff6ff;
+            border: 1px solid #dbeafe;
+          }
+          .correct-answer {
+            background-color: #f0fdf4;
+            border: 1px solid #dcfce7;
+          }
+          .block-title {
+            display: block;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+          }
+          .user-answer .block-title {
+            color: #2563eb;
+          }
+          .correct-answer .block-title {
+            color: #16a34a;
+          }
+          .answer-content {
+            font-size: 14px;
+            color: #1f2937;
+            white-space: pre-wrap;
+          }
+          .match-item {
+            margin-bottom: 4px;
+            font-size: 13px;
+          }
+          .no-answer {
+            color: #9ca3af;
+            font-style: italic;
+          }
+          @media print {
+            body {
+              padding: 20px;
+            }
+            .question-card {
+              border: 1px solid #ccc;
+              box-shadow: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Church Quiz Competition</h1>
+          <p>Participant Answer Sheet: <b>${selectedSub.participantName}</b></p>
+          <p>Quiz: ${quiz.title}</p>
+          <p>Submitted on: ${new Date(selectedSub.submittedAt).toLocaleString()}</p>
+        </div>
+        
+        <div class="score-summary">
+          <span class="score-title">Final Graded Score</span>
+          <span class="score-value">${selectedSub.autoScore + selectedSub.manualScore} / ${totalPossiblePoints}</span>
+        </div>
+        
+        <div class="questions-list">
+          ${questionsHtml}
+        </div>
+        
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(documentHtml);
+    printWindow.document.close();
+  };
+
   if (!quiz) return <div className="p-8 text-center text-gray-500">Loading...</div>;
 
   const totalPossiblePoints = quiz.questions.reduce((acc, q) => acc + (q.type === 'MATCHING' ? q.options.length : q.points), 0);
@@ -89,10 +344,18 @@ export default function Results() {
         <div className="md:col-span-2">
           {selectedSub ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800">{selectedSub.participantName}'s Answers</h2>
-                  <p className="text-gray-500 text-sm mt-1">Submitted on {new Date(selectedSub.submittedAt).toLocaleString()}</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <h2 className="text-2xl font-bold text-gray-800">{selectedSub.participantName}'s Answers</h2>
+                    <button
+                      onClick={downloadAnswerSheet}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 hover:text-gray-900 rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                    >
+                      <span>📥</span> Download Answer Sheet
+                    </button>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-1.5">Submitted on {new Date(selectedSub.submittedAt).toLocaleString()}</p>
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-bold text-primary-600">{selectedSub.autoScore + selectedSub.manualScore} <span className="text-lg text-gray-400">/ {totalPossiblePoints}</span></div>

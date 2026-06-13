@@ -15,6 +15,7 @@ export default function QuizTaker() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Fetch quiz details
   useEffect(() => {
@@ -77,17 +78,9 @@ export default function QuizTaker() {
     }
   };
 
-  const handleSubmit = async (isAutoSubmit = false) => {
-    if (!participantName) {
-      alert("Please enter your name before starting/submitting.");
-      return;
-    }
-    
-    if (!isAutoSubmit && !window.confirm('Are you sure you want to submit? You cannot change your answers later.')) {
-      return;
-    }
-
+  const performSubmit = async () => {
     setIsSubmitting(true);
+    setShowConfirmModal(false);
     try {
       await axios.post('/api/submissions', {
         quizId: id,
@@ -99,6 +92,19 @@ export default function QuizTaker() {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit quiz.');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (isAutoSubmit = false) => {
+    if (!participantName.trim()) {
+      alert("Please enter your name before submitting.");
+      return;
+    }
+
+    if (isAutoSubmit) {
+      performSubmit();
+    } else {
+      setShowConfirmModal(true);
     }
   };
 
@@ -327,6 +333,58 @@ export default function QuizTaker() {
           </button>
         </div>
       </main>
+
+      {/* Custom Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-gray-100 max-w-md w-full transform transition-all duration-300 scale-100">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Confirm Submission</h3>
+            <p className="text-gray-550 text-sm mb-6 leading-relaxed">
+              Are you sure you want to submit your quiz? You will not be able to change your answers after this.
+            </p>
+            
+            {/* Progress stats */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-6 flex flex-col gap-2">
+              <div className="flex justify-between text-sm text-gray-600 font-medium">
+                <span>Total Questions:</span>
+                <span className="text-gray-800 font-bold">{quiz.questions.length}</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-600 font-medium">
+                <span>Answered Questions:</span>
+                <span className="text-primary-600 font-bold">{Object.keys(answers).length}</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-650 font-medium">
+                <span>Unanswered Questions:</span>
+                <span className={`${quiz.questions.length - Object.keys(answers).length > 0 ? 'text-orange-600 font-bold' : 'text-gray-500 font-bold'}`}>
+                  {quiz.questions.length - Object.keys(answers).length}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-850 font-semibold rounded-xl transition-colors border border-gray-200 text-center"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                onClick={performSubmit}
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl transition-colors shadow-md text-center flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  'Yes, Submit'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
